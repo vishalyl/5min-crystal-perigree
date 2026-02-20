@@ -1,12 +1,12 @@
 """
-market_fetcher.py — Auto-discover upcoming Polymarket 15m crypto markets
+market_fetcher.py — Auto-discover upcoming Polymarket 5m crypto markets
 =========================================================================
-Generates upcoming 15-minute slot timestamps, constructs the slug for each
+Generates upcoming 5-minute slot timestamps, constructs the slug for each
 crypto, fetches clobTokenIds from the Gamma API, and appends new slots to
 upcoming_markets.txt.
 
 Can run standalone:  python market_fetcher.py
-Also called from crypto_monitor.py every 15 minutes as a background task.
+Also called from crypto_monitor.py every 10 minutes as a background task.
 """
 
 import datetime
@@ -22,9 +22,9 @@ from zoneinfo import ZoneInfo
 ET_TZ = ZoneInfo("America/New_York")
 GAMMA_API_BASE = "https://gamma-api.polymarket.com/markets/slug/"
 MARKETS_FILE = Path(__file__).parent / "upcoming_markets.txt"
-INTERVAL = 900       # 15 minutes in seconds
-FETCH_INTERVAL = 900  # Re-fetch every 15 minutes
-COUNT = 10            # Number of future intervals to generate
+INTERVAL = 300       # 5 minutes in seconds
+FETCH_INTERVAL = 600  # Re-fetch every 10 minutes
+COUNT = 12            # Number of future intervals to generate (1 hour)
 
 CRYPTOS = ["btc", "eth", "sol", "xrp"]
 
@@ -63,8 +63,8 @@ def _fetch_single_market(slug, crypto_label):
 
 def fetch_upcoming_slots():
     """
-    Fetch the next COUNT 15-minute market slots from the Gamma API.
-    Uses Unix timestamp alignment: round down to last 15-min boundary,
+    Fetch the next COUNT 5-minute market slots from the Gamma API.
+    Uses Unix timestamp alignment: round down to last 5-min boundary,
     then generate COUNT future intervals.
     """
     now = int(time.time())
@@ -80,7 +80,7 @@ def fetch_upcoming_slots():
         slot_meta.append({"label": display_time, "timestamp": next_timestamp})
 
         for coin in CRYPTOS:
-            slug = f"{coin}-updown-15m-{next_timestamp}"
+            slug = f"{coin}-updown-5m-{next_timestamp}"
             tasks.append((i - 1, coin.upper(), slug))
 
     # Fire all requests concurrently (COUNT * 4 cryptos)
@@ -141,7 +141,7 @@ def append_new_slots(new_slots):
 def discover_and_append():
     """Main discovery: fetch slots, deduplicate, append new ones."""
     now_str = datetime.datetime.now(ET_TZ).strftime("%I:%M %p EST")
-    print(f"\n{MAGENTA}[FETCHER]{RESET} {now_str} — Checking for new 15m market slots...")
+    print(f"\n{MAGENTA}[FETCHER]{RESET} {now_str} — Checking for new 5m market slots...")
 
     existing_labels = get_existing_slot_labels()
     print(f"  {DIM}Existing slots in file: {len(existing_labels)}{RESET}")
@@ -192,7 +192,7 @@ def start_fetcher():
 
 # ─── Standalone mode ─────────────────────────────────────────────
 if __name__ == "__main__":
-    print(f"\n{BOLD}Polymarket 15m Market Discovery{RESET}")
+    print(f"\n{BOLD}Polymarket 5m Market Discovery{RESET}")
     print(f"  File: {MARKETS_FILE}")
     slots = discover_and_append()
     print(f"\n{GREEN}Done.{RESET}")

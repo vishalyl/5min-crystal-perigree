@@ -1,12 +1,12 @@
 ---
-description: How to run the Polymarket 15m crypto monitor (cold start, wipe, restart)
+description: How to run the Polymarket 5m crypto monitor (cold start, wipe, restart)
 ---
 
-# All Commands — Polymarket 15m Monitor
+# All Commands — Polymarket 5m Monitor
 
 All commands assume you're in PowerShell at the project directory:
 ```powershell
-cd "c:\Users\visha\Premier Pro\EDITING\OneDrive\Desktop\crystal-perigee"
+cd "c:\Users\visha\Premier Pro\EDITING\OneDrive\Desktop\15min-crystal-perigree"
 ```
 
 ---
@@ -55,7 +55,7 @@ taskkill /F /IM python.exe 2>$null; Start-Sleep 2; Remove-Item -Force trades.db,
 # Kill the stuck process
 taskkill /F /IM python.exe 2>$null
 
-# Restart (keeps trades.db intact, fetches fresh 15m market slots)
+# Restart (keeps trades.db intact, fetches fresh 5m market slots)
 $env:PYTHONUNBUFFERED="1"; python crypto_monitor.py
 ```
 
@@ -95,7 +95,7 @@ python -c "import websocket,json; ws=websocket.create_connection('wss://ws-subsc
 ## ⚠️ Key Things to Know
 
 - **Always use `$env:PYTHONUNBUFFERED="1"`** before `python` — otherwise output buffers on Windows and looks frozen
-- The monitor **auto-clears** `upcoming_markets.txt` on every restart and fetches fresh 15m slots
+- The monitor **auto-clears** `upcoming_markets.txt` on every restart and fetches fresh 5m slots
 - `trades.db` is **never auto-deleted** — only the wipe command removes it
 - Dashboard auto-refreshes every 10 seconds
-- Fetcher runs every 15 minutes in the background
+- Fetcher runs every 10 minutes in the background

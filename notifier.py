@@ -2,7 +2,7 @@
 notifier.py — Telegram trade alerts
 ====================================
 Sends notifications on trade events via Telegram Bot API.
-Configured for 15-minute crypto market monitoring.
+Configured for 5-minute crypto market monitoring.
 """
 
 import requests
@@ -12,7 +12,7 @@ from datetime import datetime, timezone, timedelta
 EST = timezone(timedelta(hours=-5))
 
 # Telegram config
-TELEGRAM_BOT_TOKEN = "8574336093:AAGl9-xBaXgUFQMGUd_iyY_QqHvnX837TpY"
+TELEGRAM_BOT_TOKEN = "8492139183:AAHPSop_4mWrvmkl1prk8rk1JQ8zxDKxhgE"
 TELEGRAM_CHAT_ID = None  # Will be auto-detected on first /start
 
 TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
@@ -71,7 +71,7 @@ def notify_trade_opened(asset, side, entry_price, shares, limit_sell, equity, sl
         f"━━━━━━━━━━━━━━━━━━\n"
         f"<b>{asset}</b> {side} @ <b>${entry_price:.3f}</b>\n"
         f"Shares: {shares:.1f} | Amount: $30.00\n"
-        f"🎯 Limit Sell: <b>${limit_sell:.3f}</b> (+$0.02)\n"
+        f"🎯 Limit Sell: <b>${limit_sell:.3f}</b> (+$0.01)\n"
         f"📅 Slot: {slot_label}\n"
         f"💰 Equity: <b>${equity:.2f}</b>"
     )
@@ -104,9 +104,9 @@ def notify_limit_hit(asset, side, exit_price, pnl_usd, pnl_pct, latency_sec, equ
 
 
 def notify_trade_expired(asset, side, exit_price, pnl_usd, pnl_pct, equity):
-    """Notify when a trade wipes out (15m slot expired)."""
+    """Notify when a trade wipes out (5m slot expired)."""
     text = (
-        f"🔴 <b>15m SLOT EXPIRED — WIPEOUT</b>\n"
+        f"🔴 <b>5m SLOT EXPIRED — WIPEOUT</b>\n"
         f"━━━━━━━━━━━━━━━━━━\n"
         f"<b>{asset}</b> {side} @ <b>${exit_price:.3f}</b>\n"
         f"P&L: <b>${pnl_usd:+.2f}</b> ({pnl_pct:+.1f}%)\n"
@@ -116,13 +116,13 @@ def notify_trade_expired(asset, side, exit_price, pnl_usd, pnl_pct, equity):
 
 
 def notify_slot_summary(slot_label, results, equity):
-    """Notify with a summary after a 15m slot completes."""
+    """Notify with a summary after a 5m slot completes."""
     wins = sum(1 for r in results if r["outcome"] == "win")
     losses = sum(1 for r in results if r["outcome"] == "loss")
     total_pnl = sum(r["pnl_usd"] for r in results)
 
     lines = [
-        f"📊 <b>15m SLOT SUMMARY</b>",
+        f"📊 <b>5m SLOT SUMMARY</b>",
         f"━━━━━━━━━━━━━━━━━━",
         f"📅 {slot_label}",
         f"✅ Wins: {wins} | ❌ Losses: {losses}",
@@ -155,7 +155,7 @@ def _handle_command(text):
 
     if cmd in ("/start", "/help"):
         return (
-            "💎 <b>Crystal Perigee 15m Bot</b>\n"
+            "💎 <b>Crystal Perigee 5m Bot</b>\n"
             "━━━━━━━━━━━━━━━━━━\n"
             "/status — Portfolio overview\n"
             "/trades — Active positions\n"

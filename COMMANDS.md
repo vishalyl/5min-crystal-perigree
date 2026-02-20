@@ -1,4 +1,4 @@
-# Commands Reference — Polymarket 15m Crypto Monitor
+# Commands Reference — Polymarket 5m Crypto Monitor
 
 > All commands run in **PowerShell** from the project directory.
 
@@ -45,7 +45,7 @@ taskkill /F /IM python.exe 2>$null
 $env:PYTHONUNBUFFERED="1"; python crypto_monitor.py
 ```
 
-> The monitor auto-clears `upcoming_markets.txt` and re-fetches fresh 15m slots. Your `trades.db` is preserved.
+> The monitor auto-clears `upcoming_markets.txt` and re-fetches fresh 5m slots. Your `trades.db` is preserved.
 
 ---
 
@@ -99,10 +99,10 @@ python market_fetcher.py
 
 | Constant | Default | Description |
 |----------|---------|-------------|
-| `MAX_CONCURRENT_SLOTS` | `3` | Trade 3 fifteen-minute slots simultaneously |
+| `MAX_CONCURRENT_SLOTS` | `6` | Trade 6 five-minute slots simultaneously |
 | `TRADE_AMOUNT` | `$30` | Simulated buy amount per trade |
-| `LIMIT_OFFSET` | `$0.02` | Limit sell = entry + offset |
-| `WINDOW_SIZE` | `8` | Queue holds up to 8 upcoming slots |
+| `LIMIT_OFFSET` | `$0.01` | Limit sell = entry + offset |
+| `WINDOW_SIZE` | `12` | Queue holds up to 12 upcoming slots |
 
 ---
 

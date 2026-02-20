@@ -1,7 +1,7 @@
 """
 trade_logger.py — Quant-grade SQLite trade logging
 ===================================================
-Logs every 15-minute market trade with full DNA: temporal data, liquidity,
+Logs every 5-minute market trade with full DNA: temporal data, liquidity,
 excursion, fill latency, and granular tick history for replay / analysis.
 """
 

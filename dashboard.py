@@ -1,7 +1,7 @@
 """
 dashboard.py — Streamlit Quant Analytics Dashboard
 ===================================================
-Polymarket 15-minute crypto market analytics.
+Polymarket 5-minute crypto market analytics.
 Run:  streamlit run dashboard.py
 """
 
@@ -22,7 +22,7 @@ STARTING_EQUITY = 1000.0
 EST = timezone(timedelta(hours=-5))
 
 st.set_page_config(
-    page_title="Crystal Perigee — 15m Quant Dashboard",
+    page_title="Crystal Perigee — 5m Quant Dashboard",
     page_icon="💎",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -137,7 +137,7 @@ def parse_upcoming_slots():
 
         year, month, day = map(int, date_str.split("-"))
         start_dt = datetime(year, month, day, hour, minute, tzinfo=EST)
-        end_dt = start_dt + timedelta(minutes=15)
+        end_dt = start_dt + timedelta(minutes=5)
 
         markets = {}
         current_crypto = None
@@ -166,7 +166,7 @@ def parse_upcoming_slots():
 
 # ─── Sidebar ────────────────────────────────────────────────────────
 st.sidebar.title("💎 Crystal Perigee")
-st.sidebar.caption("Polymarket 15m Crypto Quant Engine")
+st.sidebar.caption("Polymarket 5m Crypto Quant Engine")
 auto_refresh = st.sidebar.checkbox("Auto-refresh (10s)", value=True)
 if auto_refresh:
     st_autorefresh(interval=10000, key="auto_refresh")
@@ -179,8 +179,8 @@ df = load_trades()
 upcoming_slots = parse_upcoming_slots()
 now_est = datetime.now(EST)
 
-# Current 15m slot display
-current_slot_minute = (now_est.minute // 15) * 15
+# Current 5m slot display
+current_slot_minute = (now_est.minute // 5) * 5
 current_slot_label = now_est.replace(minute=current_slot_minute, second=0, microsecond=0).strftime("%I:%M %p")
 
 # Sidebar equity display
@@ -196,7 +196,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### Filters")
 
 # ─── Title ─────────────────────────────────────────────────────────
-st.title("💎 Crystal Perigee — 15m Quant Dashboard")
+st.title("💎 Crystal Perigee — 5m Quant Dashboard")
 st.caption(f"📡 Live  ·  {now_est.strftime('%I:%M:%S %p EST  ·  %A, %B %d, %Y')}")
 
 # ─── TABS ──────────────────────────────────────────────────────────
@@ -281,11 +281,11 @@ with tab_current:
 
 
 # ════════════════════════════════════════════════════════════════════
-# TAB 2: UPCOMING SLOTS (15-minute aware)
+# TAB 2: UPCOMING SLOTS (5-minute aware)
 # ════════════════════════════════════════════════════════════════════
 with tab_upcoming:
-    st.subheader("📅 15m Market Schedule")
-    st.caption(f"Current time: **{now_est.strftime('%I:%M %p EST')}** · Current 15m slot: **{current_slot_label}**")
+    st.subheader("📅 5m Market Schedule")
+    st.caption(f"Current time: **{now_est.strftime('%I:%M %p EST')}** · Current 5m slot: **{current_slot_label}**")
 
     if upcoming_slots:
         for slot in upcoming_slots:
@@ -459,9 +459,9 @@ with tab_analytics:
             st.plotly_chart(fig_asset, width="stretch")
 
     with col_right:
-        st.subheader("🕐 P&L by 15m Slot")
+        st.subheader("🕐 P&L by 5m Slot")
         if not resolved.empty:
-            # Create a slot label from hour + minute for 15m granularity
+            # Create a slot label from hour + minute for 5m granularity
             if "minute_of_hour" in resolved.columns:
                 resolved_copy = resolved.copy()
                 resolved_copy["slot_time"] = resolved_copy.apply(
