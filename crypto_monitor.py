@@ -251,7 +251,7 @@ def send_subscribe(token_ids):
     }
     try:
         ws_app.send(json.dumps(payload))
-        print(f"  {GREEN}✓ Subscribed to {len(token_ids)} new tokens{RESET}")
+        print(f"  {GREEN}✓ [WS] Sent subscribe for {len(token_ids)} tokens{RESET}")
     except Exception as e:
         print(f"  {RED}[WS SUB ERR] {e}{RESET}")
 
@@ -265,7 +265,7 @@ def send_unsubscribe(token_ids):
     }
     try:
         ws_app.send(json.dumps(payload))
-        print(f"  {YELLOW}✓ Unsubscribed from {len(token_ids)} expired tokens{RESET}")
+        print(f"  {YELLOW}✓ [WS] Sent unsubscribe for {len(token_ids)} tokens{RESET}")
     except Exception as e:
         print(f"  {RED}[WS UNSUB ERR] {e}{RESET}")
 
@@ -356,13 +356,11 @@ def on_open(ws):
     token_ids = list(token_to_label.keys())
     if token_ids:
         payload = {
+            "operation": "subscribe",
             "assets_ids": token_ids,
-            "type": "market",
-            "initial_dump": True,
-            "custom_feature_enabled": True,
         }
         ws.send(json.dumps(payload))
-        print(f"  {GREEN}✓ WS connected — subscribed to {len(token_ids)} tokens{RESET}")
+        print(f"  {GREEN}✓ [WS] Connected — Initialized subscription for {len(token_ids)} tokens{RESET}")
     else:
         print(f"  {YELLOW}⚠ WS connected but no tokens to subscribe{RESET}")
     
