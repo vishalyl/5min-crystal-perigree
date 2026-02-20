@@ -1,10 +1,10 @@
 """
-Polymarket 1h Crypto Up/Down Monitor v4 (Multi-Slot)
-====================================================
+Polymarket 15m Crypto Up/Down Monitor v5 (Multi-Slot)
+=====================================================
 - Parses upcoming_markets.txt
-- Trades up to 2 active slots simultaneously (8 trades total)
+- Trades up to 3 active slots simultaneously (12 trades total)
 - REST API → picks more expensive side (YES vs NO)
-- $30 simulated BUY, limit SELL at entry + $0.05
+- $30 simulated BUY, limit SELL at entry + $0.02
 - WebSocket monitors all active tokens
 - SQLite logging (trade_logger.py)
 - Telegram alerts (notifier.py)
@@ -33,10 +33,10 @@ MARKETS_FILE = Path(__file__).parent / "upcoming_markets.txt"
 CLOB_PRICE_URL = "https://clob.polymarket.com/price"
 WS_URL = "wss://ws-subscriptions-clob.polymarket.com/ws/market"
 TRADE_AMOUNT = 30.0
-LIMIT_OFFSET = 0.05
+LIMIT_OFFSET = 0.02
 CRYPTOS = ["BTC", "ETH", "SOL", "XRP"]
-WINDOW_SIZE = 5  # Increased queue size
-MAX_CONCURRENT_SLOTS = 2  # Trade 2 slots at once
+WINDOW_SIZE = 8  # Deeper queue for 15m slots
+MAX_CONCURRENT_SLOTS = 3  # Trade 3 slots at once
 
 # ─── Colors ─────────────────────────────────────────────────────────
 CYAN   = "\033[96m"
@@ -65,7 +65,7 @@ def parse_markets_file(filepath):
         lines = block.split("\n")
         label = lines[0].strip()
 
-        # Parse full datetime: "2026-02-20 05:00 AM EST"
+        # Parse full datetime: "2026-02-20 05:15 PM EST"
         dt_match = re.match(r"(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*(AM|PM)\s*EST", label)
         if not dt_match:
             continue
@@ -80,7 +80,7 @@ def parse_markets_file(filepath):
 
         year, month, day = map(int, date_str.split("-"))
         start_dt = datetime(year, month, day, hour, minute, tzinfo=EST)
-        end_dt = start_dt + timedelta(hours=1)
+        end_dt = start_dt + timedelta(minutes=15)  # 15-minute window
 
         markets = {}
         current_crypto = None
@@ -303,10 +303,10 @@ def on_message(ws, message):
         crypto, side = label.split()
         trade = token_to_trade.get(token_id)
 
-        # Throttled tick printing (1 per token per 5 seconds)
+        # Throttled tick printing (1 per token per 3 seconds for 15m markets)
         now = time.time()
         last = _last_tick_print.get(token_id, 0)
-        if now - last >= 5:
+        if now - last >= 3:
             _last_tick_print[token_id] = now
             spread = ask - bid
             print(f"  {DIM}[TICK]{RESET} {crypto} {side}: ${mid:.3f} (bid=${bid:.3f} ask=${ask:.3f} spread={spread:.4f})")
@@ -446,7 +446,7 @@ def activate_slot_trades(slot):
 
 def close_slot_trades(slot):
     """Close all pending trades for the specified slot."""
-    print(f"\n{YELLOW}Closing trades for expired slot: {slot['label']}{RESET}")
+    print(f"\n{YELLOW}Closing trades for expired 15m slot: {slot['label']}{RESET}")
     
     # Identify tokens to remove
     tokens_to_remove = []
@@ -515,7 +515,7 @@ def slot_watcher_thread():
         
         expired_indices = []
         for i, slot in enumerate(active_slots):
-            # Expire when current time >= slot end time (start + 1 hour)
+            # Expire when current time >= slot end time (start + 15 minutes)
             if now >= slot["end_dt"]:
                 print(f"\n  {YELLOW}⏰ Slot expired: {slot['label']} (end_dt={slot['end_dt'].strftime('%I:%M %p')}){RESET}")
                 close_slot_trades(slot)
@@ -535,7 +535,7 @@ def slot_watcher_thread():
 def main():
     global ws_app, slot_queue
 
-    print(f"\n{BOLD}{CYAN}Polymarket Multi-Slot Monitor v4{RESET}")
+    print(f"\n{BOLD}{CYAN}Polymarket 15m Multi-Slot Monitor v5{RESET}")
     db.init_db()
 
     # ── Step 1: Clear old slots and fetch fresh ──────────────────────
@@ -552,7 +552,7 @@ def main():
     slot_queue = reload_and_rebuild_queue()
     print(f"  {GREEN}✓ Fresh queue built: {len(slot_queue)} upcoming slots{RESET}")
 
-    # ── Step 2: Open trades for up to 2 slots ────────────────────────
+    # ── Step 2: Open trades for up to 3 slots ────────────────────────
     print(f"\n  {CYAN}[STARTUP] Opening trades...{RESET}")
     maintain_active_slots()
     print(f"  {GREEN}✓ {len(active_slots)} active slot(s), {len(token_to_label)} tokens ready{RESET}")

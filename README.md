@@ -1,4 +1,4 @@
-# Crystal Perigee — Polymarket 1h Crypto Quant Engine
+# Crystal Perigee — Polymarket 15m Crypto Quant Engine
 
 ## Quick Start
 
@@ -20,18 +20,19 @@ streamlit run dashboard.py
 | `crypto_monitor.py` | Main bot: market parsing, side selection, WebSocket monitoring, trade execution |
 | `trade_logger.py` | SQLite database: 30+ columns per trade, tick recording, excursion tracking |
 | `notifier.py` | Telegram alerts: trade open, limit sell hit, wipeout, slot summary |
-| `dashboard.py` | Streamlit analytics: equity curve, asset beta, hourly heatmap, excursion analysis |
-| `upcoming_markets.txt` | Paste your Polymarket market token IDs here |
+| `dashboard.py` | Streamlit analytics: equity curve, asset beta, 15m slot heatmap, excursion analysis |
+| `market_fetcher.py` | Auto-discovers upcoming 15m markets from the Gamma API |
+| `upcoming_markets.txt` | Auto-generated file of discovered market token IDs |
 | `trades.db` | Auto-created SQLite database (don't delete!) |
 
 ## How It Works
 
-1. **Parses** `upcoming_markets.txt` for token IDs
-2. **Rolling 3-slot queue** — always monitors the next 3 hours
+1. **Fetches** upcoming 15-minute crypto markets using Unix timestamp-based slugs
+2. **Rolling 8-slot queue** — always monitors the next 2 hours of 15m windows
 3. **REST API** checks YES and NO prices → picks the more expensive side
-4. **Simulates** a $30 BUY at entry price, places a limit SELL at entry + $0.05
-5. **WebSocket** monitors only the 4 winning-side tokens
-6. **Resolution**: `limit_hit` (bid reaches target → ✅ win) or `slot_expired` (hour ends → 🔴 wipeout)
+4. **Simulates** a $30 BUY at entry price, places a limit SELL at entry + $0.02
+5. **WebSocket** monitors all winning-side tokens across up to 3 concurrent slots
+6. **Resolution**: `limit_hit` (bid reaches target → ✅ win) or `slot_expired` (15 minutes ends → 🔴 wipeout)
 7. All trades logged to SQLite with full quant DNA
 
 ## Telegram Setup
@@ -43,11 +44,11 @@ streamlit run dashboard.py
 
 ## Adding New Markets
 
-Paste new slots into `upcoming_markets.txt` in this format:
+Markets are auto-discovered every 15 minutes by `market_fetcher.py`. Slots appear in `upcoming_markets.txt` in this format:
 
 ```
-🕒 Slot: 2026-02-20 10:00 AM EST
-   BTC: https://polymarket.com/event/...
+🕒 Slot: 2026-02-20 10:15 AM EST
+   BTC: https://polymarket.com/event/btc-updown-15m-1740064800
         ✅ YES: <token_id>
         ❌ NO : <token_id>
    ETH: ...
@@ -62,7 +63,7 @@ The bot reloads the file when the queue runs empty.
 The Streamlit dashboard shows:
 - **Equity curve** (starting at $1,000)
 - **Asset beta** (BTC vs ETH vs SOL vs XRP performance)
-- **Hourly heatmap** (which hours are profitable?)
+- **15m slot heatmap** (which quarter-hours are profitable?)
 - **Excursion analysis** (adverse & favorable)
 - **Spread vs outcome** (does wide spread = loss?)
 - **Fill latency** distribution

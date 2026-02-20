@@ -1,6 +1,7 @@
 """
 dashboard.py — Streamlit Quant Analytics Dashboard
 ===================================================
+Polymarket 15-minute crypto market analytics.
 Run:  streamlit run dashboard.py
 """
 
@@ -21,7 +22,7 @@ STARTING_EQUITY = 1000.0
 EST = timezone(timedelta(hours=-5))
 
 st.set_page_config(
-    page_title="Crystal Perigee — Quant Dashboard",
+    page_title="Crystal Perigee — 15m Quant Dashboard",
     page_icon="💎",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -106,7 +107,7 @@ def load_latest_price(trade_id):
 
 
 def parse_upcoming_slots():
-    """Parse upcoming_markets.txt and return structured slot data with market names."""
+    """Parse upcoming_markets.txt and return structured slot data with full datetime."""
     if not MARKETS_FILE.exists():
         return []
 
@@ -121,16 +122,22 @@ def parse_upcoming_slots():
         lines = block.split("\n")
         label = lines[0].strip()
 
-        hour_match = re.search(r"(\d{1,2}):(\d{2})\s*(AM|PM)\s*EST", label)
-        if not hour_match:
+        # Parse full datetime including minutes: "2026-02-20 05:15 PM EST"
+        dt_match = re.match(r"(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*(AM|PM)\s*EST", label)
+        if not dt_match:
             continue
-        hour = int(hour_match.group(1))
-        minute = int(hour_match.group(2))
-        ampm = hour_match.group(3)
+        date_str = dt_match.group(1)
+        hour = int(dt_match.group(2))
+        minute = int(dt_match.group(3))
+        ampm = dt_match.group(4)
         if ampm == "AM" and hour == 12:
             hour = 0
         elif ampm == "PM" and hour != 12:
             hour += 12
+
+        year, month, day = map(int, date_str.split("-"))
+        start_dt = datetime(year, month, day, hour, minute, tzinfo=EST)
+        end_dt = start_dt + timedelta(minutes=15)
 
         markets = {}
         current_crypto = None
@@ -140,7 +147,6 @@ def parse_upcoming_slots():
             crypto_match = re.match(r"(BTC|ETH|SOL|XRP)\s*:", ls)
             if crypto_match:
                 current_crypto = crypto_match.group(1)
-                # Extract market name from URL
                 url_match = re.search(r"https://polymarket\.com/event/([^\s]+)", ls)
                 market_name = url_match.group(1).replace("-", " ").title() if url_match else current_crypto
                 url = url_match.group(0) if url_match else ""
@@ -149,20 +155,21 @@ def parse_upcoming_slots():
 
         slots.append({
             "label": label,
-            "hour": hour,
+            "start_dt": start_dt,
+            "end_dt": end_dt,
             "markets": markets,
         })
 
-    slots.sort(key=lambda s: s["hour"])
+    slots.sort(key=lambda s: s["start_dt"])
     return slots
 
 
 # ─── Sidebar ────────────────────────────────────────────────────────
 st.sidebar.title("💎 Crystal Perigee")
-st.sidebar.caption("Polymarket 1h Crypto Quant Engine")
-auto_refresh = st.sidebar.checkbox("Auto-refresh (15s)", value=True)
+st.sidebar.caption("Polymarket 15m Crypto Quant Engine")
+auto_refresh = st.sidebar.checkbox("Auto-refresh (10s)", value=True)
 if auto_refresh:
-    st_autorefresh(interval=15000, key="auto_refresh")
+    st_autorefresh(interval=10000, key="auto_refresh")
 
 if st.sidebar.button("🔄 Refresh Now"):
     st.rerun()
@@ -171,7 +178,10 @@ if st.sidebar.button("🔄 Refresh Now"):
 df = load_trades()
 upcoming_slots = parse_upcoming_slots()
 now_est = datetime.now(EST)
-current_hour = now_est.hour
+
+# Current 15m slot display
+current_slot_minute = (now_est.minute // 15) * 15
+current_slot_label = now_est.replace(minute=current_slot_minute, second=0, microsecond=0).strftime("%I:%M %p")
 
 # Sidebar equity display
 if not df.empty:
@@ -186,7 +196,7 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("### Filters")
 
 # ─── Title ─────────────────────────────────────────────────────────
-st.title("💎 Crystal Perigee — Quant Dashboard")
+st.title("💎 Crystal Perigee — 15m Quant Dashboard")
 st.caption(f"📡 Live  ·  {now_est.strftime('%I:%M:%S %p EST  ·  %A, %B %d, %Y')}")
 
 # ─── TABS ──────────────────────────────────────────────────────────
@@ -271,33 +281,42 @@ with tab_current:
 
 
 # ════════════════════════════════════════════════════════════════════
-# TAB 2: UPCOMING SLOTS
+# TAB 2: UPCOMING SLOTS (15-minute aware)
 # ════════════════════════════════════════════════════════════════════
 with tab_upcoming:
-    st.subheader("📅 Market Schedule")
-    st.caption(f"Current time: **{now_est.strftime('%I:%M %p EST')}** · Current hour slot: **{current_hour}:00**")
+    st.subheader("📅 15m Market Schedule")
+    st.caption(f"Current time: **{now_est.strftime('%I:%M %p EST')}** · Current 15m slot: **{current_slot_label}**")
 
     if upcoming_slots:
         for slot in upcoming_slots:
-            slot_hour = slot["hour"]
-            # Determine status
-            if slot_hour + 1 <= current_hour:
+            slot_start = slot["start_dt"]
+            slot_end = slot["end_dt"]
+
+            # Determine status using full datetime comparison
+            if now_est >= slot_end:
                 status = "expired"
                 status_label = "⏹ Completed"
                 card_class = "slot-expired"
-            elif slot_hour == current_hour:
+            elif slot_start <= now_est < slot_end:
+                # Calculate time remaining in this slot
+                remaining_sec = (slot_end - now_est).total_seconds()
+                remaining_min = int(remaining_sec // 60)
+                remaining_s = int(remaining_sec % 60)
                 status = "active"
-                status_label = "🔴 LIVE NOW"
+                status_label = f"🔴 LIVE ({remaining_min}m {remaining_s}s left)"
                 card_class = "slot-active"
-            elif slot_hour == current_hour + 1:
-                status = "next"
-                status_label = "⏭ Next Up"
-                card_class = "slot-upcoming"
             else:
-                status = "upcoming"
-                mins_until = (slot_hour - current_hour) * 60 - now_est.minute
-                status_label = f"⏰ In {mins_until} min"
-                card_class = "slot-upcoming"
+                # Upcoming
+                until_sec = (slot_start - now_est).total_seconds()
+                until_min = int(until_sec // 60)
+                if until_min <= 15:
+                    status = "next"
+                    status_label = f"⏭ Next Up ({until_min} min)"
+                    card_class = "slot-upcoming"
+                else:
+                    status = "upcoming"
+                    status_label = f"⏰ In {until_min} min"
+                    card_class = "slot-upcoming"
 
             # Build market list
             market_lines = ""
@@ -404,7 +423,7 @@ with tab_analytics:
             xaxis_title="Trade #", yaxis_title="Equity ($)",
             margin=dict(t=20, b=40),
         )
-        st.plotly_chart(fig_eq, use_container_width=True)
+        st.plotly_chart(fig_eq, width="stretch")
     else:
         st.info("No resolved trades yet.")
 
@@ -437,23 +456,33 @@ with tab_analytics:
             fig_asset.update_layout(template="plotly_dark", height=300, margin=dict(t=20, b=40))
             fig_asset.update_yaxes(title_text="P&L ($)", secondary_y=False)
             fig_asset.update_yaxes(title_text="Win Rate (%)", secondary_y=True)
-            st.plotly_chart(fig_asset, use_container_width=True)
+            st.plotly_chart(fig_asset, width="stretch")
 
     with col_right:
-        st.subheader("🕐 P&L by Hour (EST)")
+        st.subheader("🕐 P&L by 15m Slot")
         if not resolved.empty:
-            hourly = resolved.groupby("hour_of_day").agg(
+            # Create a slot label from hour + minute for 15m granularity
+            if "minute_of_hour" in resolved.columns:
+                resolved_copy = resolved.copy()
+                resolved_copy["slot_time"] = resolved_copy.apply(
+                    lambda r: f"{int(r['hour_of_day']) if r['hour_of_day'] <= 12 else int(r['hour_of_day'])-12}:{int(r.get('minute_of_hour', 0)):02d}{'AM' if r['hour_of_day'] < 12 else 'PM'}",
+                    axis=1
+                )
+            else:
+                resolved_copy = resolved.copy()
+                resolved_copy["slot_time"] = resolved_copy["hour_of_day"].apply(
+                    lambda h: f"{h if h <= 12 else h-12}{'AM' if h < 12 else 'PM'}"
+                )
+
+            hourly = resolved_copy.groupby("slot_time").agg(
                 total_pnl=("pnl_usd", "sum"),
                 trades=("id", "count"),
                 wins=("outcome", lambda x: (x == "win").sum()),
             ).reset_index()
             hourly["win_rate"] = hourly["wins"] / hourly["trades"] * 100
-            hourly["hour_label"] = hourly["hour_of_day"].apply(
-                lambda h: f"{h if h <= 12 else h-12}{'AM' if h < 12 else 'PM'}"
-            )
 
             fig_hour = go.Figure(go.Bar(
-                x=hourly["hour_label"],
+                x=hourly["slot_time"],
                 y=hourly["total_pnl"],
                 marker_color=["#00e676" if v >= 0 else "#ff5252" for v in hourly["total_pnl"]],
                 text=[f"{r:.0f}%" for r in hourly["win_rate"]],
@@ -461,10 +490,10 @@ with tab_analytics:
             ))
             fig_hour.update_layout(
                 template="plotly_dark", height=300,
-                xaxis_title="Hour (EST)", yaxis_title="P&L ($)",
+                xaxis_title="Slot Time (EST)", yaxis_title="P&L ($)",
                 margin=dict(t=20, b=40),
             )
-            st.plotly_chart(fig_hour, use_container_width=True)
+            st.plotly_chart(fig_hour, width="stretch")
 
     st.markdown("---")
 
@@ -481,7 +510,7 @@ with tab_analytics:
                 template="plotly_dark",
             )
             fig_adv.update_layout(height=300, xaxis_title="Max Adverse Excursion (%)", yaxis_title="P&L ($)", margin=dict(t=20, b=40))
-            st.plotly_chart(fig_adv, use_container_width=True)
+            st.plotly_chart(fig_adv, width="stretch")
 
     with col_ex2:
         st.subheader("📈 Favorable Excursion vs P&L")
@@ -494,7 +523,7 @@ with tab_analytics:
                 template="plotly_dark",
             )
             fig_fav.update_layout(height=300, xaxis_title="Max Favorable Excursion (%)", yaxis_title="P&L ($)", margin=dict(t=20, b=40))
-            st.plotly_chart(fig_fav, use_container_width=True)
+            st.plotly_chart(fig_fav, width="stretch")
 
     st.markdown("---")
 
@@ -510,7 +539,7 @@ with tab_analytics:
                 template="plotly_dark",
             )
             fig_spread.update_layout(height=300, yaxis_title="Entry Spread ($)", margin=dict(t=20, b=40))
-            st.plotly_chart(fig_spread, use_container_width=True)
+            st.plotly_chart(fig_spread, width="stretch")
 
     with col_lat:
         st.subheader("⏱ Fill Latency Distribution")
@@ -522,10 +551,10 @@ with tab_analytics:
                     resolved_lat, x="fill_min",
                     color="outcome",
                     color_discrete_map={"win": "#00e676", "loss": "#ff5252"},
-                    nbins=20, template="plotly_dark",
+                    nbins=15, template="plotly_dark",
                 )
                 fig_lat.update_layout(height=300, xaxis_title="Fill Latency (minutes)", yaxis_title="Count", margin=dict(t=20, b=40))
-                st.plotly_chart(fig_lat, use_container_width=True)
+                st.plotly_chart(fig_lat, width="stretch")
 
     st.markdown("---")
 
@@ -562,7 +591,7 @@ with tab_log:
             "limit_sell_price", "exit_price", "pnl_usd", "pnl_pct",
             "outcome", "exit_reason", "fill_latency_sec",
             "max_adverse_pct", "max_favorable_pct",
-            "entry_spread", "num_price_updates", "hour_of_day", "day_of_week",
+            "entry_spread", "num_price_updates", "hour_of_day", "minute_of_hour", "day_of_week",
         ]
         available_cols = [c for c in display_cols if c in df.columns]
 
@@ -571,7 +600,7 @@ with tab_log:
                 lambda v: "color: #00e676" if v == "win" else ("color: #ff5252" if v == "loss" else ""),
                 subset=["outcome"] if "outcome" in available_cols else [],
             ),
-            use_container_width=True,
+            width="stretch",
             height=600,
         )
 
@@ -636,7 +665,7 @@ with tab_replay:
                 xaxis_title="Tick #", yaxis_title="Price ($)",
                 margin=dict(t=20, b=40),
             )
-            st.plotly_chart(fig_tick, use_container_width=True)
+            st.plotly_chart(fig_tick, width="stretch")
 
             tc1, tc2, tc3, tc4 = st.columns(4)
             tc1.metric("Entry", f"${trade_row['entry_price']:.3f}")

@@ -1,12 +1,13 @@
 """
 trade_logger.py — Quant-grade SQLite trade logging
 ===================================================
-Logs every trade with full DNA: temporal data, liquidity, excursion,
-fill latency, and granular tick history for replay / analysis.
+Logs every 15-minute market trade with full DNA: temporal data, liquidity,
+excursion, fill latency, and granular tick history for replay / analysis.
 """
 
 import sqlite3
 import os
+import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -14,8 +15,6 @@ EST = timezone(timedelta(hours=-5))
 DB_PATH = Path(__file__).parent / "trades.db"
 STARTING_EQUITY = 1000.0
 
-
-import time
 
 def get_conn():
     conn = sqlite3.connect(str(DB_PATH), timeout=30, check_same_thread=False)
@@ -56,6 +55,7 @@ def init_db():
             entry_time_utc      TEXT    NOT NULL,
             entry_time_est      TEXT    NOT NULL,
             hour_of_day         INTEGER NOT NULL,
+            minute_of_hour      INTEGER NOT NULL DEFAULT 0,
             day_of_week         TEXT    NOT NULL,
 
             -- Entry prices
@@ -140,15 +140,15 @@ def open_trade(slot_label, asset, side_chosen, token_id, entry_price,
     cur = conn.execute("""
         INSERT INTO trades (
             slot_label, asset, side_chosen, token_id,
-            entry_time_utc, entry_time_est, hour_of_day, day_of_week,
+            entry_time_utc, entry_time_est, hour_of_day, minute_of_hour, day_of_week,
             entry_price, yes_price_at_entry, no_price_at_entry,
             side_price_delta, shares, trade_amount_usd, limit_sell_price,
             min_price, max_price, equity_before
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         slot_label, asset, side_chosen, token_id,
         now_utc.isoformat(), now_est.isoformat(),
-        now_est.hour, now_est.strftime("%A"),
+        now_est.hour, now_est.minute, now_est.strftime("%A"),
         entry_price, yes_price, no_price,
         abs(yes_price - no_price),
         shares, trade_amount, limit_sell_price,
