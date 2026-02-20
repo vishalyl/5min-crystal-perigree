@@ -572,7 +572,7 @@ def main():
                 on_error=on_error,
                 on_close=on_close,
             )
-            ws_app.run_forever()
+            ws_app.run_forever(ping_interval=30, ping_timeout=10)
         except KeyboardInterrupt:
             print(f"\n{YELLOW}Exiting...{RESET}")
             sys.exit(0)
