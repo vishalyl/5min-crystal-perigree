@@ -219,6 +219,7 @@ def select_winning_sides(slot):
 # ─── State ──────────────────────────────────────────────────────────
 
 prices = {}          # token_id -> { bid, ask, mid }
+orderbooks = {}      # token_id -> { "bids": {price_str: size}, "asks": {price_str: size} }
 token_to_label = {}  # token_id -> "BTC YES"
 token_to_trade = {}  # token_id -> trade dict
 active_slots = []    # List of active slot dicts
@@ -246,7 +247,6 @@ def send_subscribe(token_ids):
     if not ws_app or not ws_app.sock or not ws_app.sock.connected or not token_ids:
         return
     payload = {
-        "type": "market",
         "operation": "subscribe",
         "assets_ids": token_ids,
     }
@@ -261,7 +261,6 @@ def send_unsubscribe(token_ids):
     if not ws_app or not ws_app.sock or not ws_app.sock.connected or not token_ids:
         return
     payload = {
-        "type": "market",
         "operation": "unsubscribe",
         "assets_ids": token_ids,
     }
@@ -285,19 +284,42 @@ def on_message(ws, message):
         _ws_msg_count += 1
 
         # First message debug
-        if _ws_msg_count == 1:
+        if _ws_msg_count <= 5:
             event = item.get('event_type', item.get('type', '?'))
-            print(f"  {GREEN}[WS] First message received (event_type={event}){RESET}")
+            print(f"  {DIM}[WS DEBUG]{RESET} Raw message: {list(item.keys())} | event_type={event}")
 
-        if item.get("event_type") != "best_bid_ask":
+        if item.get("event_type") not in ("book", "price_change"):
+            if _ws_msg_count % 50 == 0:
+                print(f"  {DIM}[WS TRACE]{RESET} Ignored msg event: {item.get('event_type')}")
             continue
 
         token_id = item.get("asset_id", "")
         if token_id not in token_to_label:
             continue
 
-        bid = float(item.get("best_bid", 0))
-        ask = float(item.get("best_ask", 0))
+        # Maintain orderbook
+        if token_id not in orderbooks or item.get("event_type") == "book":
+            orderbooks[token_id] = {"bids": {}, "asks": {}}
+            
+        ob = orderbooks[token_id]
+        
+        for b in item.get("bids", []):
+            if float(b["size"]) > 0:
+                ob["bids"][b["price"]] = float(b["size"])
+            else:
+                ob["bids"].pop(b["price"], None)
+                
+        for a in item.get("asks", []):
+            if float(a["size"]) > 0:
+                ob["asks"][a["price"]] = float(a["size"])
+            else:
+                ob["asks"].pop(a["price"], None)
+                
+        if not ob["bids"] or not ob["asks"]:
+            continue
+            
+        bid = max(float(p) for p in ob["bids"].keys())
+        ask = min(float(p) for p in ob["asks"].keys())
         mid = (bid + ask) / 2
         prices[token_id] = {"bid": bid, "ask": ask, "mid": mid}
 
@@ -333,6 +355,7 @@ def on_message(ws, message):
                 send_unsubscribe([token_id])
                 token_to_trade.pop(token_id, None)
                 token_to_label.pop(token_id, None)
+                orderbooks.pop(token_id, None)
                 _last_tick_print.pop(token_id, None)
                 print(f"  {YELLOW}↳ Unsubscribed {crypto} {side} (trade done){RESET}")
                 break  # token removed from maps, stop processing this item
@@ -361,7 +384,8 @@ def on_open(ws):
             "assets_ids": token_ids,
             "type": "market",
             "initial_dump": True,
-            "custom_feature_enabled": True,
+            "level": 2,
+            "custom_feature_enabled": False,
         }
         ws.send(json.dumps(payload))
         print(f"  {GREEN}✓ WS connected — subscribed to {len(token_ids)} tokens{RESET}")
@@ -479,6 +503,7 @@ def close_slot_trades(slot):
     for t in tokens_to_remove:
         token_to_trade.pop(t, None)
         token_to_label.pop(t, None)
+        orderbooks.pop(t, None)
         
     if tokens_to_remove:
         send_unsubscribe(tokens_to_remove)
@@ -486,9 +511,12 @@ def close_slot_trades(slot):
 
 def maintain_active_slots():
     """Ensure we have filled up to MAX_CONCURRENT_SLOTS."""
-    if not slot_queue:
+    # Always try to reload from file if queue is empty or low
+    if len(slot_queue) < MAX_CONCURRENT_SLOTS:
         new_q = reload_and_rebuild_queue()
         if new_q:
+            # Clear and extend to avoid duplicates
+            slot_queue.clear()
             slot_queue.extend(new_q)
             
     added = False
@@ -499,6 +527,10 @@ def maintain_active_slots():
         # Skip slots that have already ended
         if next_slot["end_dt"] <= now:
             print(f"  {DIM}Skipping expired slot: {next_slot['label']}{RESET}")
+            continue
+            
+        # Skip slots already being traded
+        if any(s["label"] == next_slot["label"] for s in active_slots):
             continue
              
         active_slots.append(next_slot)

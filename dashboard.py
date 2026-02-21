@@ -92,11 +92,11 @@ def load_ticks(trade_id):
 
 
 def load_latest_price(trade_id):
-    """Fetch the most recent price from DB for a trade."""
+    """Fetch the most recent bid price from DB for a trade (price to sell at)."""
     conn = get_conn()
     try:
         row = conn.execute(
-            "SELECT mid FROM price_ticks WHERE trade_id = ? ORDER BY id DESC LIMIT 1",
+            "SELECT bid FROM price_ticks WHERE trade_id = ? ORDER BY id DESC LIMIT 1",
             (trade_id,)
         ).fetchone()
         return row[0] if row else None
@@ -254,7 +254,7 @@ with tab_current:
                 with col_b:
                     st.metric("Entry", f"${entry:.3f}")
                 with col_c:
-                    st.metric("Current", f"${current_price:.3f}", f"{pnl_pct:+.1f}%")
+                    st.metric("Current (Bid)", f"${current_price:.3f}", f"{pnl_pct:+.1f}%")
                 with col_d:
                     st.metric("Target", f"${target:.3f}")
                 with col_e:
